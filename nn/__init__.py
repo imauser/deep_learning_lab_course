@@ -1,4 +1,4 @@
-from .neuralnetwork import (
+from .network import (
     NeuralNetwork,
 )
 from .layers import (
