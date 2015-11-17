@@ -14,6 +14,10 @@ from .conv.layers import (
     Flatten,
 )
 
+from .data import (
+    mnist,
+)
+
 __all__ = [
     'NeuralNetwork',
     'Activation',
@@ -24,4 +28,5 @@ __all__ = [
     'Conv',
     'Pool',
     'Flatten',
+    'mnist'
 ]

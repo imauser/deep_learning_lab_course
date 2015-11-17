@@ -1,4 +1,5 @@
 import numpy as np
+from .layers import Layer, Parameterized, Activation
 
 class NeuralNetwork:
     """ Our Neural Network container class.

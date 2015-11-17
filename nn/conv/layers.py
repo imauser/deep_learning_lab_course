@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..layers import Layer, Parameterized
+from ..layers import Layer, Parameterized, Activation
 
 class Conv(Layer, Parameterized):
     """ 
@@ -22,10 +22,12 @@ class Conv(Layer, Parameterized):
     init_stddef : a float specifying the standard deviation for weight init
     padding_mode : a string specifying which padding mode to use 
       (we only support zero padding or 'same' convolutions for now)
+    activation_fun : a :class:`Activation` instance
     """
-    def __init__(self, input_layer, n_feats, init_stddev,
-                 filter_shape, strides=(1,1),
-                 padding_mode='same'):
+    def __init__(self, input_layer, n_feats,
+                 filter_shape, init_stddev, strides=(1,1),
+                 padding_mode='same',
+                 activation_fun=Activation('relu')):
         """
         Initialize convolutional layer.
         :parameters@param input_layer 
@@ -35,19 +37,19 @@ class Conv(Layer, Parameterized):
         self.filter_shape = filter_shape
         self.strides = strides
         self.init_stddev = init_stddev
-        self.weight_decay = weight_decay
         self.padding_mode = padding_mode
         self.input_shape = input_layer.output_size()
         self.n_channels = self.input_shape[1]
+        self.activation_fun = activation_fun
         
-        W_shape = (n_channels, self.n_feats) + self.filter_shape
+        W_shape = (self.n_channels, self.n_feats) + self.filter_shape
         self.W = np.random.normal(size=W_shape, scale=self.init_stddev)
         self.b = np.zeros(self.n_feats)
 
     def fprop(self, input):
         # we cache the input and the input
         self.last_input = input
-        convout = np.empty(self.output_shape(input.shape))
+        convout = np.empty(self.output_size())
         # TODO
         # This is were you actually do the convolution with W!
         # You do not have to consider the bias!
@@ -57,11 +59,19 @@ class Conv(Layer, Parameterized):
         # HINT: I recommend putting conv and pooling in little helper functions
         #       at the start of this file!
         #       The call to these should then look something like:
-        #       conv(input, self.W, convout)
+        #conv(input, self.W, self.strides, self.padding_mode, convout)
         # TODO
-        return convout + self.b[np.newaxis, :, np.newaxis, np.newaxis]
+        convout += self.b[np.newaxis, :, np.newaxis, np.newaxis]
+        if self.activation_fun is not None:
+            return self.activation_fun.fprop(convout)
+        else:
+            return convout
 
     def bprop(self, output_grad):
+        if self.activation_fun == None:
+            output_grad_pre = output_grad
+        else:
+            output_grad_pre = self.activation_fun.bprop(output_grad)
         last_input_shape = self.last_input.shape
         input_grad = np.empty(last_input_shape)
         self.dW = np.empty(self.W.shape)
@@ -73,10 +83,10 @@ class Conv(Layer, Parameterized):
         # HINT: I recommend putting conv and pooling in little helper functions
         #       at the start of this file!
         #       The call to these should then look something like:
-        # bprop_conv(self.last_input, output_grad, self.W, input_grad,  self.dW)
+        #bprop_conv(self.last_input, output_grad_pre, self.W, input_grad,  self.dW)
         # TODO
-        n_imgs = output_grad.shape[0]
-        self.db = np.sum(output_grad, axis=(0, 2, 3)) / (n_imgs)
+        n_imgs = output_grad_pre.shape[0]
+        self.db = np.sum(output_grad_pre, axis=(0, 2, 3)) / (n_imgs)
         return input_grad
 
     def params(self):
@@ -122,9 +132,9 @@ class Pool(Layer):
         # and also the switches
         # which are the positions were the maximum was
         # we need those for doing the backwards pass!
-        self.last_switches = np.empty(self.output_shape(input.shape)+(2,),
+        self.last_switches = np.empty(self.output_size()+(2,),
                                       dtype=np.int)
-        poolout = np.empty(self.output_shape(input.shape))
+        poolout = np.empty(self.output_size())
         # TODO
         # this is were you have to implement pooling
         # HINT: it is very similar to the convolution from above
@@ -134,8 +144,8 @@ class Pool(Layer):
         #       (switches) in self.last_switches, you will need those in the
         #       backward pass!
         # the call should look something like:
-        # pool(input, poolout, self.last_switches, self.pool_h, self.pool_w,
-        #      self.stride_y, self.stride_x)
+        #pool(input, poolout, self.last_switches, self.pool_h, self.pool_w,
+        #     self.stride_y, self.stride_x)
         # TODO
         return poolout
 
@@ -144,7 +154,7 @@ class Pool(Layer):
         # TODO
         # implement the backward pass through the pooling
         # it should use the switches, the call should look something like:
-        # bprop_pool(output_grad, self.last_switches, input_grad)
+        #bprop_pool(output_grad, self.last_switches, input_grad)
         # TODO
         return input_grad
     
@@ -165,6 +175,10 @@ class Flatten(Layer):
     The result will always preserve the dimensionality along
     the zeroth axis (the batch size) and flatten all other dimensions!
     """
+
+    def __init__(self, input_layer):
+        self.input_shape = input_layer.output_size()
+        
     def fprop(self, input):
         self.last_input_shape = input.shape
         return np.reshape(input, (input.shape[0], -1))
@@ -172,5 +186,5 @@ class Flatten(Layer):
     def bprop(self, output_grad):
         return np.reshape(output_grad, self.last_input_shape)
 
-    def output_shape(self, input_shape):
-        return (input_shape[0], np.prod(input_shape[1:]))
+    def output_size(self):
+        return (self.input_shape[0], np.prod(self.input_shape[1:]))
