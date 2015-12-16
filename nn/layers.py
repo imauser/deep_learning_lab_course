@@ -1,5 +1,7 @@
 import numpy as np
 
+DTYPE = np.float
+
 # start by defining simple helpers
 def sigmoid(x):
     return 1.0/(1.0+np.exp(-x))
@@ -19,15 +21,15 @@ def relu(x):
     return np.maximum(0.0, x)
 
 def relu_d(x):
-    dx = np.zeros(x.shape)
+    dx = np.zeros(x.shape, dtype=DTYPE)
     dx[x >= 0] = 1
     return dx
 
 def linear(x):
     return x
 
-def liear_d(x):
-    return np.ones_like(x)
+def linear_d(x):
+    return np.ones_like(x, dtype=DTYPE)
 
 def softmax(x, axis=1):
     # to make the softmax a "safe" operation we will 
@@ -46,7 +48,7 @@ def one_hot(labels):
     """
     classes = np.unique(labels)
     n_classes = classes.size
-    one_hot_labels = np.zeros(labels.shape + (n_classes,))
+    one_hot_labels = np.zeros(labels.shape + (n_classes,), dtype=DTYPE)
     for c in classes:
         one_hot_labels[labels == c, c] = 1
     return one_hot_labels
@@ -142,6 +144,7 @@ class InputLayer(Layer):
         return self.input_shape
     
     def fprop(self, input):
+        self.input_shape = input.shape
         return input
     
     def bprop(self, output_grad):
@@ -158,16 +161,18 @@ class FullyConnectedLayer(Layer, Parameterized):
         # the input shape will be of size (batch_size, num_units_prev) 
         # where num_units_prev is the number of units in the input 
         # (previous) layer
+        self.input_layer = input_layer
         self.input_shape = input_layer.output_size()
         # this is the weight matrix it should have shape: (num_units_prev, num_units)
-        self.W = np.random.randn(self.input_shape[1], self.num_units) * init_stddev
+        self.W = np.asarray(np.random.randn(self.input_shape[1], self.num_units) * init_stddev, dtype=DTYPE)
         # and this is the bias vector of shape: (num_units)
-        self.b = np.zeros(self.num_units)
+        self.b = np.zeros(self.num_units, dtype=DTYPE)
         # create dummy variables for parameter gradients
         self.dW = None
         self.db = None
     
     def output_size(self):
+        self.input_shape = self.input_layer.output_size()
         return (self.input_shape[0], self.num_units)
     
     def fprop(self, input):

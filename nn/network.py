@@ -1,5 +1,5 @@
 import numpy as np
-from .layers import Layer, Parameterized, Activation
+from .layers import Layer, Parameterized, Activation, one_hot, unhot, DTYPE
 
 class NeuralNetwork:
     """ Our Neural Network container class.
@@ -28,17 +28,29 @@ class NeuralNetwork:
             next_grad = layer.bprop(next_grad)
         return next_grad
     
-    def classification_error(self, X, Y):
+    def classification_error(self, X, Y, batch_size):
         """ Calculate error on the given data 
             assuming they are classes that should be predicted. 
         """
-        Y_pred = unhot(self.predict(X))
-        error = Y_pred != Y
-        return np.mean(error)
+        n_samples = X.shape[0]
+        n_batches = n_samples // batch_size
+        n_err = 0
+        for b in range(n_batches):
+            batch_begin = b*batch_size
+            batch_end = batch_begin+batch_size
+            X_batch = X[batch_begin:batch_end]
+            Y_batch = Y[batch_begin:batch_end]
+
+            # Forward propagation
+            Y_pred = unhot(self.predict(X_batch))
+            n_err += np.sum(Y_pred != Y_batch)
+        return float(n_err) / n_samples
     
     def sgd_epoch(self, X, Y, learning_rate, batch_size):
         n_samples = X.shape[0]
         n_batches = n_samples // batch_size
+        # also track the loss during training
+        loss = 0.
         for b in range(n_batches):
             batch_begin = b*batch_size
             batch_end = batch_begin+batch_size
@@ -51,19 +63,23 @@ class NeuralNetwork:
             # Back propagation
             self.backpropagate(Y_batch, Y_pred)
 
+            loss += self.layers[-1].loss(Y_batch, Y_pred)
+            
             # Update parameters
             for layer in self.layers:
                 if isinstance(layer, Parameterized):
                     for param, grad in zip(layer.params(),
                                           layer.grad_params()):
                         param -= learning_rate*grad
+        return loss / n_batches
     
     def gd_epoch(self, X, Y, learning_rate):
-        self.sgd_epoch(X, Y, learning_rate, X.size[0])
+        return self.sgd_epoch(X, Y, learning_rate, X.size[0])
     
     def train(self, X, Y, Xvalid=None, Yvalid=None, 
               learning_rate=0.1, max_epochs=100, 
-              batch_size=64, descent_type="sgd", y_one_hot=True):
+              batch_size=64, descent_type="sgd",
+              y_one_hot=True, log_every=5):
         """ Train network on the given data. """
         n_samples = X.shape[0]
         n_batches = n_samples // batch_size
@@ -74,19 +90,23 @@ class NeuralNetwork:
         print("... starting training")
         for e in range(max_epochs+1):
             if descent_type == "sgd":
-                self.sgd_epoch(X, Y_train, learning_rate, batch_size)
+                train_loss = self.sgd_epoch(X, Y_train, learning_rate, batch_size)
             elif descent_type == "gd":
-                self.gd_epoch(X, Y_train, learning_rate)
+                train_loss = self.gd_epoch(X, Y_train, learning_rate)
             else:
                 raise NotImplemented("Unknown gradient descent type {}".format(descent_type))
 
-            # Output error on the training data
-            train_loss = self._loss(X, Y_train)
-            train_error = self.classification_error(X, Y)
-            print('epoch {:4d}, loss {:.4f}, train error {:.4f}'.format(e, train_loss, train_error))
-            if Xvalid is not None:
-                valid_error = self.classification_error(Xvalid, Yvalid)
-                print('\t\t\t valid error {:.4f}'.format(valid_error))
+            # Output some statistics
+            if e % log_every == 0:
+                train_error = self.classification_error(X, Y, batch_size)
+                print('epoch {:4d}, loss {:.4f}, train error {:.4f}'.format(e, train_loss, train_error))
+                if Xvalid is not None:
+                    valid_error = self.classification_error(Xvalid, Yvalid, batch_size)
+                    print('\t\t\t valid error {:.4f}'.format(valid_error))
+            else:
+                # only basic output that induces no additional computational costs
+                print('epoch {:4d}, loss {:.4f}'.format(e, train_loss))
+                    
     
     def check_gradients(self, X, Y):
         """ Helper function to test the parameter gradients for
@@ -139,10 +159,10 @@ class NeuralNetwork:
                     #      both results should be epsilon close
                     #      to each other!
                     # ####################################
-                    epsilon = 1e-4
+                    epsilon = 1e-8
                     loss_base = output_given_params(param_init)
                     gparam_bprop = grad_given_params(param_init)
-                    gparam_fd = np.zeros_like(param_init)
+                    gparam_fd = np.zeros_like(param_init, dtype=DTYPE)
                     for i in range(len(param_init)):
                         param_init[i] += epsilon
                         gparam_fd[i] = (output_given_params(param_init) - loss_base) / (epsilon)
@@ -150,7 +170,7 @@ class NeuralNetwork:
                     
                     err = np.mean(np.abs(gparam_bprop - gparam_fd))
                     print('diff {:.2e}'.format(err))
-                    assert(err < epsilon)
+                    assert(err < 10 * epsilon)
                     
                     # reset the parameters to their initial values
                     param[:] = np.reshape(param_init, param_shape)
