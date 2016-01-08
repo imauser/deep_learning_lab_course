@@ -1,3 +1,6 @@
+from .augmentator import (
+    Augmentator,
+)
 from .network import (
     NeuralNetwork,
 )
