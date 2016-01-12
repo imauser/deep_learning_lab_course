@@ -9,8 +9,10 @@ class Augmentator():
     @staticmethod
     def augment_images(images, augmentation_factor):
         out = []
-        zooms =  int(augmentation_factor * random.random())
-        eds = augmentation_factor - zooms
+
+        zooms = int(augmentation_factor * random.random() * 1./3.)
+        eds = int((augmentation_factor - zooms ) *random.random() * 1./2.)
+        rotations = int(augmentation_factor - zooms - eds)
         for i in images:
             for j in range(zooms):
                 out.append(Augmentator.augment_keeping_image_size(Augmentator.zoom, i,\
@@ -19,11 +21,15 @@ class Augmentator():
                 out.append(Augmentator.augment_keeping_image_size(\
                         Augmentator.elastic_deformation, i, sigma=2*random.random(),\
                         alpha=4*random.random()));
+            for j in range(rotations):
+                out.append(Augmentator.augment_keeping_image_size(\
+                        Augmentator.rotate, i, angle=random.random()* 360.));
+
         return out
 
     @staticmethod
-    def rotate(image, angle, *args, **kwargs):
-        return nd.interpolation.rotate(image, angle, *args, **kwargs)
+    def rotate(image, angle, axes=(1,2),*args, **kwargs):
+        return nd.interpolation.rotate(image, angle, axes, *args, **kwargs)
 
 
     @staticmethod
@@ -42,6 +48,13 @@ class Augmentator():
     def zoom_keeping_image_size(image,*args,**kwargs):
         return Augmentator.augment_keeping_image_size(Augmentator.zoom, image,\
                 *args, **kwargs)
+
+    @staticmethod
+    def rotate_keeping_image_size(image,*args,**kwargs):
+        return Augmentator.augment_keeping_image_size(Augmentator.rotate, image,\
+                *args, **kwargs)
+
+
 
     @staticmethod
     def elastic_deformation(image, sigma=1.,alpha=100.):

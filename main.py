@@ -21,10 +21,10 @@ print(np.max(train_x))
 
 # What we can see above is that the data is not yet normalized (it contains pixel values between 0 and 255) so you might want to do that. What we can also see is that the data has 3 channels and consists of 32 x 32 images. We can look at an image as follows (pyplot expects the rgb channels to be the trailing dimension, thus we have to transpose).
 
-example = train_x[100].transpose(1,2,0) / 255.
+example = train_x[100] / 255.
 
 print(example.shape)
-ex1 = nn.Augmentator.augment_images([example],2)[0]
+ex1 = nn.Augmentator.augment_images([example],5)[0].transpose(1,2,0)
 
 print(ex1.shape)
 img = plt.imshow(ex1)
