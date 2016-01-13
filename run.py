@@ -22,13 +22,10 @@ valid_y = valid_y.astype(np.float_)
 test_x = test_x.astype(np.float_) / 255.
 test_y = test_y.astype(np.float_)
 
-print(train_x.shape)
-print(train_y.shape)
-train_x = np.append(train_x, nn.Augmentator.augment_images(train_x, 2), axis=0)
-
-train_y = np.append(train_y, np.append(train_y,train_y, axis=0), axis=0)
-print(train_x.shape)
-print(train_y.shape)
+##augmentations
+#train_x = np.append(train_x, nn.Augmentator.augment_images(train_x, 2), axis=0)
+#
+#train_y = np.append(train_y, np.append(train_y,train_y, axis=0), axis=0)
 
 input_shape = (None, 3, 32, 32)
 layers = [nn.InputLayer(input_shape)]
